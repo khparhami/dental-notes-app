@@ -1,8 +1,9 @@
 {
   "expo": {
-    "name": "dental-notes-tmp",
-    "slug": "dental-notes-tmp",
+    "name": "Dental Notes",
+    "slug": "dental-notes-app",
     "version": "1.0.0",
+    "scheme": "dentalnotes",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,18 +14,17 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dentist.dentalnotes",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Microphone access is required to record patient sessions.",
+        "NSSpeechRecognitionUsageDescription": "Speech recognition is used to transcribe patient sessions for clinical documentation."
+      }
     },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store"
+    ]
   }
 }

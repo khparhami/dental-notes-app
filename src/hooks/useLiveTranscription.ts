@@ -1,0 +1,118 @@
+import { useState, useCallback, useRef, useEffect } from 'react';
+import Voice, {
+  SpeechResultsEvent,
+  SpeechErrorEvent,
+  SpeechEndEvent,
+} from '@react-native-voice/voice';
+
+export function useLiveTranscription() {
+  const [isRecording, setIsRecording] = useState(false);
+  const [partialResult, setPartialResult] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  // Completed speech chunks are accumulated here so each restart appends
+  const committedRef = useRef('');
+  // Expose the combined live view for the recording screen
+  const [displayText, setDisplayText] = useState('');
+  // Whether we're in the middle of an intentional stop (vs auto-restart)
+  const stoppingRef = useRef(false);
+
+  const updateDisplay = useCallback((committed: string, partial: string) => {
+    const separator = committed && partial ? ' ' : '';
+    setDisplayText(committed + separator + partial);
+  }, []);
+
+  const startRecognition = useCallback(async () => {
+    try {
+      await Voice.start('en-US', {
+        // Request on-device recognition so audio never leaves the device
+        EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS: 1000,
+        EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 2000,
+      });
+    } catch (e: any) {
+      // Ignore "already started" errors during auto-restart
+      if (!e.message?.includes('already started')) {
+        setError(e.message);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
+      const partial = e.value?.[0] ?? '';
+      setPartialResult(partial);
+      updateDisplay(committedRef.current, partial);
+    };
+
+    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+      const result = e.value?.[0] ?? '';
+      if (result) {
+        committedRef.current = committedRef.current
+          ? committedRef.current + ' ' + result
+          : result;
+      }
+      setPartialResult('');
+      updateDisplay(committedRef.current, '');
+    };
+
+    // iOS fires onSpeechEnd after ~1 minute. Auto-restart to get continuous recording.
+    Voice.onSpeechEnd = (_: SpeechEndEvent) => {
+      if (!stoppingRef.current) {
+        // Brief delay before restart to let onSpeechResults fire first
+        setTimeout(() => {
+          if (!stoppingRef.current) {
+            startRecognition();
+          }
+        }, 300);
+      }
+    };
+
+    Voice.onSpeechError = (e: SpeechErrorEvent) => {
+      const code = e.error?.code;
+      // Code 7 = "no match" — harmless, restart silently
+      if (code === '7' || String(code) === '7') {
+        if (!stoppingRef.current) {
+          setTimeout(() => startRecognition(), 300);
+        }
+        return;
+      }
+      setError(e.error?.message ?? 'Speech recognition error');
+      setIsRecording(false);
+    };
+
+    return () => {
+      Voice.destroy().then(Voice.removeAllListeners);
+    };
+  }, [startRecognition, updateDisplay]);
+
+  const start = useCallback(async () => {
+    committedRef.current = '';
+    stoppingRef.current = false;
+    setDisplayText('');
+    setPartialResult('');
+    setError(null);
+    setIsRecording(true);
+    await startRecognition();
+  }, [startRecognition]);
+
+  const stop = useCallback(async (): Promise<string> => {
+    stoppingRef.current = true;
+    try {
+      await Voice.stop();
+    } catch {
+      // ignore
+    }
+    setIsRecording(false);
+    // Flush any partial result into committed
+    const partial = partialResult;
+    const final = committedRef.current
+      ? (partial ? committedRef.current + ' ' + partial : committedRef.current)
+      : partial;
+    committedRef.current = '';
+    setPartialResult('');
+    setDisplayText('');
+    return final;
+  }, [partialResult]);
+
+  return { isRecording, displayText, error, start, stop };
+}
