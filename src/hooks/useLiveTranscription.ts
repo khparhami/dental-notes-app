@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { Alert } from 'react-native';
 import Voice, {
   SpeechResultsEvent,
   SpeechErrorEvent,
@@ -24,11 +25,7 @@ export function useLiveTranscription() {
 
   const startRecognition = useCallback(async () => {
     try {
-      await Voice.start('en-US', {
-        // Request on-device recognition so audio never leaves the device
-        EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS: 1000,
-        EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 2000,
-      });
+      await Voice.start('en-US');
     } catch (e: any) {
       // Ignore "already started" errors during auto-restart
       if (!e.message?.includes('already started')) {
@@ -68,12 +65,21 @@ export function useLiveTranscription() {
     };
 
     Voice.onSpeechError = (e: SpeechErrorEvent) => {
-      const code = e.error?.code;
+      const code = String(e.error?.code ?? '');
       // Code 7 = "no match" — harmless, restart silently
-      if (code === '7' || String(code) === '7') {
+      if (code === '7') {
         if (!stoppingRef.current) {
           setTimeout(() => startRecognition(), 300);
         }
+        return;
+      }
+      // Code 300 = recognizer init failed — permissions likely denied
+      if (code === '300') {
+        setIsRecording(false);
+        Alert.alert(
+          'Microphone Permission Required',
+          'Please enable Microphone and Speech Recognition access in Settings → Privacy & Security.',
+        );
         return;
       }
       setError(e.error?.message ?? 'Speech recognition error');
@@ -86,6 +92,15 @@ export function useLiveTranscription() {
   }, [startRecognition, updateDisplay]);
 
   const start = useCallback(async () => {
+    // Check permissions before starting
+    const available = await Voice.isAvailable();
+    if (!available) {
+      Alert.alert(
+        'Speech Recognition Unavailable',
+        'Please enable Speech Recognition permission in Settings → Privacy & Security → Speech Recognition.',
+      );
+      return;
+    }
     committedRef.current = '';
     stoppingRef.current = false;
     setDisplayText('');
