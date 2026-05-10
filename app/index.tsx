@@ -20,10 +20,10 @@ export default function HomeScreen() {
     navigation.setOptions({
       headerRight: () => (
         <TouchableOpacity
-          style={{ marginRight: Spacing.md }}
+          style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginRight: 8 }}
           onPress={() => router.push('/settings')}
         >
-          <Ionicons name="settings-outline" size={24} color={Colors.white} />
+          <Ionicons name="settings-outline" size={22} color={Colors.white} />
         </TouchableOpacity>
       ),
     });
