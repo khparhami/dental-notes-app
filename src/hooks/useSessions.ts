@@ -21,7 +21,7 @@ export function useSessions() {
     }
   }, []);
 
-  useFocusEffect(() => { refresh(); });
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   return { sessions, loading, error, refresh };
 }
