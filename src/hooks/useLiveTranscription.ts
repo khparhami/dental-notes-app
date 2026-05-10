@@ -11,12 +11,11 @@ export function useLiveTranscription() {
   const [partialResult, setPartialResult] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Completed speech chunks are accumulated here so each restart appends
   const committedRef = useRef('');
-  // Expose the combined live view for the recording screen
   const [displayText, setDisplayText] = useState('');
-  // Whether we're in the middle of an intentional stop (vs auto-restart)
   const stoppingRef = useRef(false);
+  // Set to true after onSpeechResults fires so partial events don't re-show committed text
+  const segmentDoneRef = useRef(false);
 
   const updateDisplay = useCallback((committed: string, partial: string) => {
     const separator = committed && partial ? ' ' : '';
@@ -24,6 +23,7 @@ export function useLiveTranscription() {
   }, []);
 
   const startRecognition = useCallback(async () => {
+    segmentDoneRef.current = false;
     try {
       await Voice.start('en-US');
     } catch (e: any) {
@@ -36,6 +36,7 @@ export function useLiveTranscription() {
 
   useEffect(() => {
     Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
+      if (segmentDoneRef.current) return;
       const partial = e.value?.[0] ?? '';
       setPartialResult(partial);
       updateDisplay(committedRef.current, partial);
@@ -48,6 +49,7 @@ export function useLiveTranscription() {
           ? committedRef.current + ' ' + result
           : result;
       }
+      segmentDoneRef.current = true;
       setPartialResult('');
       updateDisplay(committedRef.current, '');
     };
